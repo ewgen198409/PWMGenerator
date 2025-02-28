@@ -42,6 +42,8 @@ bool injectorActive = false; // Состояние активности режи
 int injectorMenuOffset = 0; // Смещение для меню инжекторов
 bool injectorPinsSetLow = false; // Флаг для отслеживания выполнения
 bool pwmPinsSetLow = false; // Флаг для отслеживания выполнения
+unsigned long constantModeStartTime = 0; // Время активации режима Constant Open
+bool constantModeActive = false; // Флаг активности режима Constant Open
 
 Encoder myEnc(ENCODER_CLK, ENCODER_DT);
 unsigned long buttonPressTime = 0;
@@ -72,15 +74,15 @@ void setup() {
 
     display.setCursor(1, 1);
     display.print("PWM");
-
+    display.setCursor(65, 11);
+    display.print("Clear");
 
     display.setTextSize(1);
     display.setCursor(1, 16);
     display.print("Generator");
-    display.setCursor(73, 1);
+    display.setCursor(63, 1);
     display.print("Injector");
-    display.setCursor(93, 11);
-    display.print("Clear");
+
     display.display();
 
     for (int i = 0; i <= SCREEN_WIDTH; i += 4) {
@@ -249,6 +251,7 @@ void loop() {
         if (!injectorPinsSetLow) {
             for (int i = 0; i < 4; i++) {
                 digitalWrite(injectorPins[i], LOW);
+                updateDisplay();
             }
             injectorPinsSetLow = true; // Устанавливаем флаг, чтобы код не выполнялся повторно
         }
@@ -279,7 +282,7 @@ void updateDisplay() {
 
     if (injectorMenuActive) {
         // Отображение режимов промывки инжекторов
-        const char* injectorModes[] = {"100 RPM", "300 RPM", "500 RPM", "800 RPM", "1500 RPM", "3600 RPM", "5000 RPM", "Constant Open"};
+        const char* injectorModes[] = {"100 RPM", "300 RPM", "500 RPM", "800 RPM", "1500 RPM", "3600 RPM", "5000 RPM", "Open 5sec"};
         for (int i = 0; i < 8; i++) {
             if (i >= injectorMenuOffset && i < injectorMenuOffset + 4) {
                 display.setCursor(0, (i - injectorMenuOffset) * 8);
@@ -436,9 +439,25 @@ void activateInjectorMode() {
             pulseInjectors(5000);
             break;
         case 7:
-            // Режим 7: Постоянное открытие инжекторов
-            for (int i = 0; i < 4; i++) {
-                digitalWrite(injectorPins[i], HIGH); // Открываем все инжекторы постоянно
+            // Режим 7: Постоянное открытие инжекторов на 5 секунд
+            if (!constantModeActive) {
+                // Активируем режим Constant Open
+                for (int i = 0; i < 4; i++) {
+                    digitalWrite(injectorPins[i], HIGH); // Открываем все инжекторы
+                }
+                constantModeStartTime = millis(); // Запоминаем время активации
+                constantModeActive = true; // Устанавливаем флаг активности
+            } else {
+                // Проверяем, прошло ли 5 секунд
+                if (millis() - constantModeStartTime >= 5000) {
+                    // Деактивируем режим Constant Open
+                    for (int i = 0; i < 4; i++) {
+                        injectorPinsSetLow = false;   // Закрываем все инжекторы
+                        
+                    }
+                    constantModeActive = false; // Сбрасываем флаг активности
+                    injectorActive = false; // Деактивируем режим промывки
+                }
             }
             break;
     }
@@ -470,6 +489,3 @@ void pulseInjectors(int rpm) {
         }
     }
 }
-
-
-
